@@ -19,6 +19,11 @@ import (
 	"net/http"
 )
 
+type CalculatorData struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("This is the Home Handler")
 	w.Write([]byte("Welcome to the home page!")) // Send response to client
@@ -29,100 +34,72 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("API is healthy")) // Send response to client
 }
 
-func addHandler(w http.ResponseWriter, r *http.Request) {
+func requestParser(w http.ResponseWriter, r *http.Request) (CalculatorData, bool) {
+	var data CalculatorData
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	defer r.Body.Close()
-
-	var data struct {
-		X float64 `json:"x"`
-		Y float64 `json:"y"`
+		return data, false
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
 		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
-		return
+		return data, false
 	}
 
+	return data, true
+}
+
+func requestSender(w http.ResponseWriter, result float64) {
 	w.Header().Set("Content-Type", "application/json")
 
 	json.NewEncoder(w).Encode(map[string]float64{
-		"result": data.X + data.Y,
+		"result": result,
 	})
+}
+
+func addHandler(w http.ResponseWriter, r *http.Request) {
+
+	defer r.Body.Close()
+
+	data, ok := requestParser(w, r)
+	if !ok {
+		return
+	}
+
+	requestSender(w, data.X+data.Y)
 }
 
 func subtractHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	defer r.Body.Close()
 
-	var data struct {
-		X float64 `json:"x"`
-		Y float64 `json:"y"`
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+	data, ok := requestParser(w, r)
+	if !ok {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	requestSender(w, data.X-data.Y)
 
-	json.NewEncoder(w).Encode(map[string]float64{
-		"result": data.X - data.Y,
-	})
 }
 
 func multiplyHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed.", http.StatusBadRequest)
-		return
-	}
-
 	defer r.Body.Close()
 
-	var data struct {
-		X float64 `json:"x"`
-		Y float64 `json:"y"`
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		http.Error(w, "Invalid JSON format.", http.StatusBadRequest)
+	data, ok := requestParser(w, r)
+	if !ok {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	requestSender(w, data.X*data.Y)
 
-	json.NewEncoder(w).Encode(map[string]float64{
-		"result": data.X * data.Y,
-	})
 }
 
 func divideHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed.", http.StatusMethodNotAllowed)
-		return
-	}
-
 	defer r.Body.Close()
 
-	var data struct {
-		X float64 `json:"x"`
-		Y float64 `json:"y"`
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+	data, ok := requestParser(w, r)
+	if !ok {
 		return
 	}
 
@@ -130,12 +107,8 @@ func divideHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Division by zero not allowed", http.StatusBadRequest)
 		return
 	}
+	requestSender(w, data.X/data.Y)
 
-	w.Header().Set("Content-Type", "application/json")
-
-	json.NewEncoder(w).Encode(map[string]float64{
-		"result": data.X / data.Y,
-	})
 }
 
 func main() {
