@@ -34,26 +34,6 @@ func htmlParser(body []byte) (*html.Node, error) {
 	return doc, nil
 }
 
-func printNode(n *html.Node, depth int) {
-	indent := strings.Repeat("  ", depth)
-	fmt.Printf("%sType: %d", indent, n.Type)
-
-	if n.Type == html.ElementNode {
-		fmt.Printf(", Tag: %s", n.Data)
-	} else if n.Type == html.TextNode {
-		fmt.Printf(", Text: %q", strings.TrimSpace(n.Data))
-	}
-
-	if len(n.Attr) > 0 {
-		fmt.Printf(", Attr: %v", n.Attr)
-	}
-	fmt.Println()
-
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		printNode(c, depth+1)
-	}
-}
-
 func findElements(n *html.Node, tag string) []*html.Node {
 	var nodes []*html.Node
 	if n.Type == html.ElementNode && n.Data == tag {
@@ -63,25 +43,6 @@ func findElements(n *html.Node, tag string) []*html.Node {
 		nodes = append(nodes, findElements(c, tag)...)
 	}
 	return nodes
-}
-
-func printAnchorTags(anchorTags []*html.Node) {
-	for i, anchor := range anchorTags {
-		fmt.Printf("Anchor #%d:\n", i+1)
-
-		for _, attr := range anchor.Attr {
-			if attr.Key == "href" {
-				fmt.Printf("	Link: %s\n", attr.Val)
-			}
-		}
-
-		for child := anchor.FirstChild; child != nil; child = child.NextSibling {
-			if child.Type == html.TextNode {
-				fmt.Printf("  Text: %q\n", strings.TrimSpace(child.Data))
-			}
-		}
-		fmt.Println()
-	}
 }
 
 func normalizeURL(href, base string) string {
