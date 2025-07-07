@@ -80,8 +80,8 @@ func (c *Crawler) worker(id int, jobs <-chan string, results chan<- []string) {
 
 // StartConcurrent begins a concurrent crawling process
 func (c *Crawler) StartConcurrent(maxWorkers int) []string {
-	jobs := make(chan string, maxWorkers)
-	results := make(chan []string, maxWorkers)
+	jobs := make(chan string, 100)
+	results := make(chan []string, 100)
 
 	// Start workers
 	for i := range maxWorkers {
