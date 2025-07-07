@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -46,13 +47,19 @@ func findElements(n *html.Node, tag string) []*html.Node {
 }
 
 func normalizeURL(href, base string) string {
-	if strings.HasPrefix(href, "http") {
-		return href // already absolute
+	u, err := url.Parse(href)
+	if err != nil {
+		return ""
 	}
-	if strings.HasPrefix(href, "/") {
-		return base + href
+
+	if !u.IsAbs() {
+		baseU, _ := url.Parse(base)
+		u = baseU.ResolveReference(u)
 	}
-	return base + "/" + href
+
+	u.Fragment = ""
+	u.RawQuery = ""
+	return u.String()
 }
 
 func getAttribute(n *html.Node, key string) string {
@@ -96,11 +103,15 @@ func extractRoutes(doc *html.Node, baseURL string) []string {
 	return routes
 }
 
-func crawl(url string, baseURL string, maxDepth int, visited map[string]bool) []string {
-	if maxDepth <= 0 || visited[url] {
+func check404(doc *html.Node) bool {
+	return true
+}
+
+func crawl(url string, baseURL string, maxDepth int, visited *map[string]bool) []string {
+	if maxDepth <= 0 || (*visited)[url] {
 		return nil
 	}
-	visited[url] = true
+	(*visited)[url] = true
 
 	_, body := requestHandler(url)
 	if body == nil {
@@ -127,15 +138,37 @@ func crawl(url string, baseURL string, maxDepth int, visited map[string]bool) []
 
 func main() {
 	baseURL := "https://scrape-me.dreamsofcode.io/"
-
-	maxDepth := 4
+	maxDepth := 5
 
 	visited := make(map[string]bool)
+	uniqueRoutes := make(map[string]bool)
 
-	allRoutes := crawl(baseURL, baseURL, maxDepth, visited)
+	var crawlRecursive func(string, int)
+	crawlRecursive = func(currentURL string, depth int) {
+		if depth > maxDepth || visited[currentURL] {
+			return
+		}
+		visited[currentURL] = true
 
-	fmt.Println("Discovered routes: ")
-	for i, route := range allRoutes {
-		fmt.Printf("%d. %s\n", i+1, route)
+		_, body := requestHandler(currentURL)
+		doc, _ := htmlParser(body)
+
+		anchors := findElements(doc, "a")
+		for _, anchor := range anchors {
+			href := getAttribute(anchor, "href")
+			normalized := normalizeURL(href, baseURL)
+
+			if normalized != "" && isSameDomain(normalized, baseURL) {
+				uniqueRoutes[normalized] = true
+				crawlRecursive(normalized, depth+1)
+			}
+		}
+	}
+
+	crawlRecursive(baseURL, 0)
+
+	fmt.Println("Unique routes:")
+	for route := range uniqueRoutes {
+		fmt.Println("-", route)
 	}
 }
