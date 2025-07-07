@@ -65,18 +65,7 @@ func findElements(n *html.Node, tag string) []*html.Node {
 	return nodes
 }
 
-func main() {
-	_, body := requestHandler("https://scrape-me.dreamsofcode.io/")
-
-	doc, err := htmlParser(body)
-
-	if err != nil {
-		fmt.Println("Error parsing html", err)
-		return
-	}
-
-	anchorTags := findElements(doc, "a")
-
+func printAnchorTags(anchorTags []*html.Node) {
 	for i, anchor := range anchorTags {
 		fmt.Printf("Anchor #%d:\n", i+1)
 
@@ -93,4 +82,17 @@ func main() {
 		}
 		fmt.Println()
 	}
+}
+
+func main() {
+	_, body := requestHandler("https://scrape-me.dreamsofcode.io/")
+	doc, err := htmlParser(body)
+	if err != nil {
+		fmt.Println("Error parsing html", err)
+		return
+	}
+
+	anchorTags := findElements(doc, "a")
+	printAnchorTags(anchorTags)
+
 }
