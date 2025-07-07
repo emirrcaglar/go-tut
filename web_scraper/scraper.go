@@ -103,8 +103,12 @@ func extractRoutes(doc *html.Node, baseURL string) []string {
 	return routes
 }
 
-func check404(doc *html.Node) bool {
-	return true
+func isErrorResponse(resp *http.Response) bool {
+	if resp == nil {
+		return true
+	}
+	status := resp.StatusCode
+	return status >= 400 && status < 600
 }
 
 func crawl(url string, baseURL string, maxDepth int, visited *map[string]bool) []string {
@@ -150,7 +154,12 @@ func main() {
 		}
 		visited[currentURL] = true
 
-		_, body := requestHandler(currentURL)
+		resp, body := requestHandler(currentURL)
+
+		if isErrorResponse(resp) {
+			return
+		}
+
 		doc, _ := htmlParser(body)
 
 		anchors := findElements(doc, "a")
