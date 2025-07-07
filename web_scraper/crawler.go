@@ -57,6 +57,71 @@ func (c *Crawler) Start() []string {
 	return routes
 }
 
+func (c *Crawler) worker(id int, jobs <-chan string, results chan<- []string) {
+	for url := range jobs {
+		fmt.Printf("Worker %d processing: %s\n", id, url)
+
+		resp, body := requestHandler(url)
+		if isErrorResponse(resp) {
+			results <- []string{} // Send empty slice on error
+			continue
+		}
+
+		doc, err := htmlParser(body)
+		if err != nil {
+			results <- []string{} // Send empty slice on error
+			continue
+		}
+
+		routes := c.extractLinks(doc, c.BaseUrl)
+		results <- routes
+	}
+}
+
+// StartConcurrent begins a concurrent crawling process
+func (c *Crawler) StartConcurrent(maxWorkers int) []string {
+	jobs := make(chan string, maxWorkers)
+	results := make(chan []string, maxWorkers)
+
+	// Start workers
+	for i := range maxWorkers {
+		go c.worker(i+1, jobs, results)
+	}
+
+	// Keep track of all URLs (queued or processed) to avoid duplicates
+	seen := make(map[string]bool)
+
+	// Start with the base URL
+	jobs <- c.BaseUrl
+	seen[c.BaseUrl] = true
+	c.UniqueRoutes[c.BaseUrl] = true
+	activeJobs := 1
+
+	for activeJobs > 0 {
+		foundRoutes := <-results
+		activeJobs--
+
+		for _, route := range foundRoutes {
+			if !seen[route] {
+				seen[route] = true
+				c.UniqueRoutes[route] = true
+				activeJobs++
+				jobs <- route
+			}
+		}
+	}
+
+	close(jobs) // All jobs are done, close channel to terminate workers
+
+	// Convert map to slice for return
+	finalRoutes := make([]string, 0, len(c.UniqueRoutes))
+	for route := range c.UniqueRoutes {
+		finalRoutes = append(finalRoutes, route)
+	}
+
+	return finalRoutes
+}
+
 // crawlRecursive performs recursive crawling
 func (c *Crawler) crawlRecursive(currentURL string, depth int) {
 	if depth > c.MaxDepth || c.Visited[currentURL] {
