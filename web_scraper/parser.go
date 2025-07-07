@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -22,4 +23,25 @@ func getAttribute(n *html.Node, key string) string {
 		}
 	}
 	return ""
+}
+
+func extractRoutes(doc *html.Node, baseURL string) []string {
+	anchors := findElements(doc, "a")
+	uniqueRoutes := make(map[string]bool)
+	var routes []string
+	for _, anchor := range anchors {
+		href := getAttribute(anchor, "href")
+		if href == "" {
+			continue
+		}
+		normalized := normalizeURL(href, baseURL)
+		if !strings.HasPrefix(normalized, "http") || uniqueRoutes[normalized] {
+			continue
+		}
+		if isSameDomain(normalized, baseURL) {
+			uniqueRoutes[normalized] = true
+			routes = append(routes, normalized)
+		}
+	}
+	return routes
 }

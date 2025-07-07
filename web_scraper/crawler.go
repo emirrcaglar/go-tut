@@ -1,38 +1,36 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"golang.org/x/net/html"
 )
 
-func crawl(url string, baseURL string, maxDepth int, visited *map[string]bool) []string {
-	if maxDepth <= 0 || (*visited)[url] {
-		return nil
-	}
-	(*visited)[url] = true
+func (c *Crawler) extractLinks(doc *html.Node, BaseUrl string) []string {
+	anchors := findElements(doc, "a")
+	uniqueRoutes := make(map[string]bool)
+	var routes []string
 
-	_, body := requestHandler(url)
-	if body == nil {
-		return nil
-	}
-
-	doc, err := htmlParser(body)
-	if err != nil {
-		return nil
-	}
-
-	routes := extractRoutes(doc, baseURL)
-	var allRoutes []string
-	allRoutes = append(allRoutes, routes...)
-
-	for _, route := range routes {
-		if isSameDomain(route, baseURL) {
-			deeperRoutes := crawl(route, baseURL, maxDepth-1, visited)
-			allRoutes = append(allRoutes, deeperRoutes...)
+	for _, anchor := range anchors {
+		href := getAttribute(anchor, "href")
+		if href == "" {
+			continue
 		}
+
+		normalized := normalizeURL(href, BaseUrl)
+
+		if !strings.HasPrefix(normalized, "http") || uniqueRoutes[normalized] {
+			continue
+		}
+
+		if isSameDomain(normalized, BaseUrl) {
+			uniqueRoutes[normalized] = true
+			routes = append(routes, normalized)
+		}
+
 	}
-	return allRoutes
+	return routes
 }
 
 func findElements(n *html.Node, tag string) []*html.Node {
@@ -46,28 +44,60 @@ func findElements(n *html.Node, tag string) []*html.Node {
 	return nodes
 }
 
-func extractRoutes(doc *html.Node, baseURL string) []string {
+// Start begins the crawling process
+func (c *Crawler) Start() []string {
+	c.crawlRecursive(c.BaseUrl, 0)
+
+	// Convert map to slice for return
+	routes := make([]string, 0, len(c.UniqueRoutes))
+	for route := range c.UniqueRoutes {
+		routes = append(routes, route)
+	}
+
+	return routes
+}
+
+// crawlRecursive performs recursive crawling
+func (c *Crawler) crawlRecursive(currentURL string, depth int) {
+	if depth > c.MaxDepth || c.Visited[currentURL] {
+		return
+	}
+
+	c.Visited[currentURL] = true
+
+	resp, body := requestHandler(currentURL)
+	if isErrorResponse(resp) {
+		return
+	}
+
+	doc, _ := htmlParser(body)
 	anchors := findElements(doc, "a")
-	uniqueRoutes := make(map[string]bool)
-	var routes []string
 
 	for _, anchor := range anchors {
 		href := getAttribute(anchor, "href")
-		if href == "" {
-			continue
+		normalized := normalizeURL(href, c.BaseUrl)
+
+		if normalized != "" && isSameDomain(normalized, c.BaseUrl) {
+			c.UniqueRoutes[normalized] = true
+			c.crawlRecursive(normalized, depth+1)
 		}
-
-		normalized := normalizeURL(href, baseURL)
-
-		if !strings.HasPrefix(normalized, "http") || uniqueRoutes[normalized] {
-			continue
-		}
-
-		if isSameDomain(normalized, baseURL) {
-			uniqueRoutes[normalized] = true
-			routes = append(routes, normalized)
-		}
-
 	}
-	return routes
+}
+
+// PrintRoutes prints all discovered routes
+func (c *Crawler) PrintRoutes() {
+	fmt.Println("Unique routes:")
+	for route := range c.UniqueRoutes {
+		fmt.Println("-", route)
+	}
+}
+
+// NewCrawler creates a new crawler instance
+func NewCrawler(BaseUrl string, maxDepth int) *Crawler {
+	return &Crawler{
+		BaseUrl:      BaseUrl,
+		MaxDepth:     maxDepth,
+		Visited:      make(map[string]bool),
+		UniqueRoutes: make(map[string]bool),
+	}
 }

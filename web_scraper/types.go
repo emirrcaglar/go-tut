@@ -35,7 +35,7 @@ type Link struct {
 	Href       string
 	Normalized string
 	Text       string
-	SameDomain string
+	SameDomain bool
 }
 
 // holds crawler configuration
