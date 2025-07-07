@@ -84,15 +84,70 @@ func printAnchorTags(anchorTags []*html.Node) {
 	}
 }
 
+func normalizeURL(href, base string) string {
+	if strings.HasPrefix(href, "http") {
+		return href // already absolute
+	}
+	if strings.HasPrefix(href, "/") {
+		return base + href
+	}
+	return base + "/" + href
+}
+
+func getAttribute(n *html.Node, key string) string {
+	for _, attr := range n.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
+}
+
+func isSameDomain(url, base string) bool {
+	baseDomain := strings.Split(base, "/")[2]
+	urlDomain := strings.Split(url, "/")[2]
+	return baseDomain == urlDomain
+}
+
+func extractRoutes(doc *html.Node, baseURL string) []string {
+	anchors := findElements(doc, "a")
+	uniqueRoutes := make(map[string]bool)
+	var routes []string
+
+	for _, anchor := range anchors {
+		href := getAttribute(anchor, "href")
+		if href == "" {
+			continue
+		}
+
+		normalized := normalizeURL(href, baseURL)
+
+		if !strings.HasPrefix(normalized, "http") || uniqueRoutes[normalized] {
+			continue
+		}
+
+		if isSameDomain(normalized, baseURL) {
+			uniqueRoutes[normalized] = true
+			routes = append(routes, normalized)
+		}
+
+	}
+	return routes
+}
+
 func main() {
-	_, body := requestHandler("https://scrape-me.dreamsofcode.io/")
+	baseURL := "https://scrape-me.dreamsofcode.io/"
+	_, body := requestHandler(baseURL)
+
 	doc, err := htmlParser(body)
 	if err != nil {
-		fmt.Println("Error parsing html", err)
+		fmt.Println("Error parsing html: ", err)
 		return
 	}
 
-	anchorTags := findElements(doc, "a")
-	printAnchorTags(anchorTags)
-
+	routes := extractRoutes(doc, baseURL)
+	fmt.Println("Discovered routes: ")
+	for _, route := range routes {
+		fmt.Println("-", route)
+	}
 }
