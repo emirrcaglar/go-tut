@@ -135,19 +135,46 @@ func extractRoutes(doc *html.Node, baseURL string) []string {
 	return routes
 }
 
-func main() {
-	baseURL := "https://scrape-me.dreamsofcode.io/"
-	_, body := requestHandler(baseURL)
+func crawl(url string, baseURL string, maxDepth int, visited map[string]bool) []string {
+	if maxDepth <= 0 || visited[url] {
+		return nil
+	}
+	visited[url] = true
+
+	_, body := requestHandler(url)
+	if body == nil {
+		return nil
+	}
 
 	doc, err := htmlParser(body)
 	if err != nil {
-		fmt.Println("Error parsing html: ", err)
-		return
+		return nil
 	}
 
 	routes := extractRoutes(doc, baseURL)
-	fmt.Println("Discovered routes: ")
+	var allRoutes []string
+	allRoutes = append(allRoutes, routes...)
+
 	for _, route := range routes {
-		fmt.Println("-", route)
+		if isSameDomain(route, baseURL) {
+			deeperRoutes := crawl(route, baseURL, maxDepth-1, visited)
+			allRoutes = append(allRoutes, deeperRoutes...)
+		}
+	}
+	return allRoutes
+}
+
+func main() {
+	baseURL := "https://scrape-me.dreamsofcode.io/"
+
+	maxDepth := 4
+
+	visited := make(map[string]bool)
+
+	allRoutes := crawl(baseURL, baseURL, maxDepth, visited)
+
+	fmt.Println("Discovered routes: ")
+	for i, route := range allRoutes {
+		fmt.Printf("%d. %s\n", i+1, route)
 	}
 }
